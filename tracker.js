@@ -7,7 +7,8 @@ javascript:(function(){
     var filterBtn = dropdowns[1]; /* Assumes 2nd dropdown is the filter */
     
     if (!filterBtn) {
-        showFloatingAssistant("I couldn't find the dropdown button. Please filter for 'Show All Trips' manually, then click Continue.");
+        /* showFloatingAssistant("I couldn't find the dropdown button. Please filter for 'Show All Trips' manually, then click Continue."); */
+        showFloatingAssistant("Please select 'Show All Trips' instead of 'Trips with Purchases' from the dropdown menu, then click Continue.");
         return;
     }
 
@@ -39,7 +40,8 @@ javascript:(function(){
             setTimeout(runDeepSearch, 1500);
         } else {
             /* --- FALLBACK: Non-Blocking UI --- */
-            showFloatingAssistant("I opened the menu but couldn't find the option.<br>Please select <b>'Show All Trips'</b> manually.<br>Then click <b>Continue</b>.");
+            /* showFloatingAssistant("I opened the menu but couldn't find the option.<br>Please select <b>'Show All Trips'</b> manually.<br>Then click <b>Continue</b>."); */
+            showFloatingAssistant("Please select 'Show All Trips' instead of 'Trips with Purchases' from the dropdown menu, then click Continue.");
         }
     }, 800);
 
@@ -163,8 +165,8 @@ javascript:(function(){
         var theadRow = table.querySelector('thead tr');
         var columnsExist = theadRow.innerText.indexOf('Status (API)') !== -1;
 
-        /* Define new columns (Added Order Num) */
-        var newHeaders = ['Order Num (API)', 'Status (API)', 'Order Amt (API)', 'Credit Amt (API)'];
+        /* Define new columns (Added Order Number) */
+        var newHeaders = ['Order Number (API)', 'Status (API)', 'Order Amount (API)', 'Credit Amount (API)'];
 
         if (!columnsExist) {
             var thTemplate = theadRow.children[1].cloneNode(true);
@@ -202,6 +204,6 @@ javascript:(function(){
             if(entry) matchCount++;
         });
         
-        setTimeout(function(){ alert('Success! Updated ' + matchCount + ' rows.'); }, 200);
+        setTimeout(function(){ console.log('Success! Updated ' + matchCount + ' rows.'); }, 200);
     }
 })();
