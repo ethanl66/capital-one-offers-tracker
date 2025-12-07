@@ -1,61 +1,153 @@
 javascript:(function(){
-    /* 1. Create the input overlay */
-    var overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:99999;display:flex;justify-content:center;align-items:center;flex-direction:column;font-family:sans-serif;';
+    /* --- Configuration --- */
+    var TARGET_TEXT_VARIANTS = ["Show All", "All Trips", "All"];
     
-    var container = document.createElement('div');
-    container.style.cssText = 'background:white;padding:20px;border-radius:8px;width:80%;max-width:600px;box-shadow:0 4px 6px rgba(0,0,0,0.1);';
+    /* --- Step 1: Identify the Dropdown --- */
+    var dropdowns = document.querySelectorAll('button[role="combobox"]');
+    var filterBtn = dropdowns[1]; /* Assumes 2nd dropdown is the filter */
     
-    var title = document.createElement('h3');
-    title.innerText = 'Paste JSON Data';
-    title.style.marginBottom = '10px';
-    
-    var textarea = document.createElement('textarea');
-    textarea.placeholder = 'Paste the content of your data file here...';
-    textarea.style.cssText = 'width:100%;height:300px;margin-bottom:15px;border:1px solid #ccc;padding:10px;font-family:monospace;';
-    
-    var btnContainer = document.createElement('div');
-    btnContainer.style.display = 'flex';
-    btnContainer.style.gap = '10px';
-    
-    var btnGo = document.createElement('button');
-    btnGo.innerText = 'Merge Data';
-    btnGo.style.cssText = 'padding:10px 20px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:bold;';
-    
-    var btnClose = document.createElement('button');
-    btnClose.innerText = 'Close';
-    btnClose.style.cssText = 'padding:10px 20px;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;';
-    
-    btnContainer.appendChild(btnGo);
-    btnContainer.appendChild(btnClose);
-    container.appendChild(title);
-    container.appendChild(textarea);
-    container.appendChild(btnContainer);
-    overlay.appendChild(container);
-    document.body.appendChild(overlay);
+    if (!filterBtn) {
+        showFloatingAssistant("I couldn't find the dropdown button. Please filter for 'Show All Trips' manually, then click Continue.");
+        return;
+    }
 
-    /* Close action */
-    btnClose.onclick = function(){ document.body.removeChild(overlay); };
+    /* Check if already correct */
+    var currentText = filterBtn.innerText.toLowerCase();
+    if (currentText.includes("show all") || currentText.includes("all trips")) {
+        runDeepSearch();
+        return;
+    }
 
-    /* Process action */
-    btnGo.onclick = function(){
-        try {
-            var jsonData = JSON.parse(textarea.value);
-            processData(jsonData);
-            document.body.removeChild(overlay);
-        } catch(e) {
-            alert('Error parsing JSON: ' + e.message);
+    /* --- Step 2: Attempt Auto-Select --- */
+    filterBtn.click();
+    
+    setTimeout(function(){
+        var options = document.querySelectorAll('[role="option"], [role="menuitem"], li');
+        var foundOption = null;
+
+        for (var i = 0; i < options.length; i++) {
+            var txt = options[i].innerText.toLowerCase();
+            if (txt.includes("show all") || txt.includes("all trips")) {
+                foundOption = options[i];
+                break;
+            }
         }
-    };
+
+        if (foundOption) {
+            foundOption.click();
+            /* Wait for table reload then run */
+            setTimeout(runDeepSearch, 1500);
+        } else {
+            /* --- FALLBACK: Non-Blocking UI --- */
+            showFloatingAssistant("I opened the menu but couldn't find the option.<br>Please select <b>'Show All Trips'</b> manually.<br>Then click <b>Continue</b>.");
+        }
+    }, 800);
+
+    /* --- UI Helper: Floating Assistant --- */
+    function showFloatingAssistant(message) {
+        var existing = document.getElementById('c1-helper-ui');
+        if (existing) existing.remove();
+
+        var box = document.createElement('div');
+        box.id = 'c1-helper-ui';
+        box.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#e6f0ff; border:2px solid #007bff; color:#003366; padding:20px; border-radius:8px; z-index:999999; box-shadow:0 10px 25px rgba(0,0,0,0.5); font-family:sans-serif; text-align:center; min-width:300px;';
+        
+        var msg = document.createElement('div');
+        msg.innerHTML = message;
+        msg.style.marginBottom = '15px';
+        msg.style.fontSize = '14px';
+        
+        var btn = document.createElement('button');
+        btn.innerText = "Continue";
+        btn.style.cssText = 'background:#007bff; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:14px;';
+        
+        btn.onclick = function() {
+            btn.innerText = "Processing...";
+            setTimeout(function(){
+                runDeepSearch();
+                box.remove();
+            }, 500);
+        };
+        
+        var close = document.createElement('div');
+        close.innerText = '×';
+        close.style.cssText = 'position:absolute; top:5px; right:10px; cursor:pointer; font-weight:bold; font-size:20px; color:#999;';
+        close.onclick = function(){ box.remove(); };
+
+        box.appendChild(close);
+        box.appendChild(msg);
+        box.appendChild(btn);
+        document.body.appendChild(box);
+    }
+
+    /* --- Logic: Deep Search & Merge --- */
+    function runDeepSearch() {
+        var rawData = findDataInReact(document.querySelector('table')) || findGlobalData();
+
+        if (!rawData) {
+            alert('Data not found in memory. Please ensure the table is loaded.');
+            return;
+        }
+        processData(rawData);
+    }
+
+    /* --- React Walkers --- */
+    function findDataInReact(domElement) {
+        if (!domElement) return null;
+        var key = Object.keys(domElement).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+        if (!key) return null;
+        var fiber = domElement[key];
+        var maxDepth = 50;
+        var curr = fiber;
+        while (curr && maxDepth > 0) {
+            var p = curr.memoizedProps;
+            if (p) { var attempt = checkObjectForData(p); if (attempt) return attempt; }
+            var s = curr.memoizedState;
+            while (s) {
+                if (s.memoizedState) {
+                    var attempt = checkObjectForData(s.memoizedState);
+                    if (attempt) return attempt;
+                    if (Array.isArray(s.memoizedState) && isTripArray(s.memoizedState)) return s.memoizedState;
+                }
+                s = s.next;
+            }
+            curr = curr.return;
+            maxDepth--;
+        }
+        return null;
+    }
+
+    function findGlobalData() {
+        try {
+            if (window.__remixContext && window.__remixContext.state && window.__remixContext.state.loaderData) {
+                var loaders = window.__remixContext.state.loaderData;
+                for (var key in loaders) {
+                    var val = checkObjectForData(loaders[key]);
+                    if (val) return val;
+                }
+            }
+        } catch(e) {}
+        return null;
+    }
+
+    function checkObjectForData(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        if (Array.isArray(obj) && isTripArray(obj)) return obj;
+        for (var key in obj) {
+            if (Array.isArray(obj[key]) && isTripArray(obj[key])) return obj[key];
+        }
+        return null;
+    }
+
+    function isTripArray(arr) {
+        return arr.length > 0 && arr[0] && typeof arr[0] === 'object' && 'tripId' in arr[0];
+    }
 
     function processData(data) {
-        /* 2. Build Lookup Map with Priority Logic */
         var map = {};
         data.forEach(function(item){
             var tid = item.tripId;
             if(!tid) return;
-            
-            /* Logic: If new ID, add it. If existing ID has null amount but new one has value, overwrite. */
             if (!map[tid]) {
                 map[tid] = item;
             } else {
@@ -65,43 +157,51 @@ javascript:(function(){
             }
         });
 
-        /* 3. Modify HTML Table */
         var table = document.querySelector('table');
-        if(!table) return alert('Table not found on this page.');
+        if(!table) return alert('Table not found.');
         
-        /* Add Headers */
         var theadRow = table.querySelector('thead tr');
-        var thTemplate = theadRow.children[1].cloneNode(true); /* Clone existing TH for style */
-        
-        ['Status (API)', 'Order Amt (API)', 'Credit Amt (API)'].forEach(function(headerTitle){
-            var th = thTemplate.cloneNode(true);
-            /* Try to find the inner text container to preserve structure */
-            var textNode = th.querySelector('h4') || th;
-            textNode.innerText = headerTitle;
-            theadRow.appendChild(th);
-        });
+        var columnsExist = theadRow.innerText.indexOf('Status (API)') !== -1;
 
-        /* Add Data Rows */
+        /* Define new columns (Added Order Num) */
+        var newHeaders = ['Order Num (API)', 'Status (API)', 'Order Amt (API)', 'Credit Amt (API)'];
+
+        if (!columnsExist) {
+            var thTemplate = theadRow.children[1].cloneNode(true);
+            newHeaders.forEach(function(headerTitle){
+                var th = thTemplate.cloneNode(true);
+                var textNode = th.querySelector('h4') || th;
+                textNode.innerText = headerTitle;
+                theadRow.appendChild(th);
+            });
+        }
+
         var tbodyRows = table.querySelectorAll('tbody tr');
-        var cellTemplate = tbodyRows[0].children[1].cloneNode(true); /* Clone existing TD for style */
-
+        var cellTemplate = tbodyRows[0].children[1].cloneNode(true);
+        var matchCount = 0;
+        
         tbodyRows.forEach(function(row){
             var cells = row.querySelectorAll('td');
             if(cells.length < 5) return;
-            
-            /* Trip ID is in the 5th column (index 4) */
+            if (columnsExist && cells.length > 9) return;
+
             var tripId = cells[4].innerText.trim();
             var entry = map[tripId];
             
+            /* Extract Data */
+            var orderNum = (entry && entry.orderId) ? entry.orderId : '-';
             var status = entry ? entry.status : '-';
             var orderAmt = (entry && entry.orderAmount !== null) ? '$' + entry.orderAmount : '-';
             var creditAmt = (entry && entry.creditAmount !== null) ? '$' + entry.creditAmount : '-';
             
-            [status, orderAmt, creditAmt].forEach(function(val){
+            [orderNum, status, orderAmt, creditAmt].forEach(function(val){
                 var td = cellTemplate.cloneNode(true);
                 td.innerText = val;
                 row.appendChild(td);
             });
+            if(entry) matchCount++;
         });
+        
+        setTimeout(function(){ alert('Success! Updated ' + matchCount + ' rows.'); }, 200);
     }
 })();
