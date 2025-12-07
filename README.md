@@ -13,7 +13,7 @@ A Javascript bookmarklet that reveals hidden data on the Capital One Shopping Tr
   * **Floating Assistant UI:** If the script cannot auto-select the dropdown (due to UI library variations), it provides a non-blocking floating "Assistant" box to guide you without freezing the page.
   * **Privacy Focused:** Does not make network requests. It strictly reads data already loaded in your browser's memory.
 
-## 🛠 Installation
+## Installation
 
 1.  Create a new bookmark in your browser (Chrome, Firefox, Edge, Safari).
 2.  Name it "C1 Offers Tracker", or anything you'd like to name it.
